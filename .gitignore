@@ -1,0 +1,11 @@
+logs/
+screenshots/
+*.xml
+*.png
+.env*
+logs/
+screenshots/
+*.png
+*.xml
+__pycache__/
+.DS_Store
