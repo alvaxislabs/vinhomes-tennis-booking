@@ -22,6 +22,10 @@ sharing a password or creating another booking.
 > review screen and report the measured time and visible target date, slot,
 > court, and price. Keep scheduling disabled until I explicitly ask to turn it
 > on. If any prompt conflicts with these steps, ask me before proceeding.
+>
+> Start the Android Virtual Device normally from Android Studio and do not use
+> its `-read-only` launch option. Read the session persistence note in
+> `README.md`; verify whether sign-in survives a normal emulator restart.
 
 ## Test booking on the developer's account
 

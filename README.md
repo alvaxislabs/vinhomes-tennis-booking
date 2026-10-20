@@ -26,7 +26,7 @@ recognize the app's booking-details page and waited its full 12-second limit.
 The detector now recognizes that page. The exact server-confirmed end-to-end
 time remains unmeasured, and the **5–10 second whole-booking target is not yet
 verified**. The test booking details are in `TEST_BOOKING.md`; the resident
-cancelled nothing as part of this test. Scheduling remains off.
+account holder plans to cancel it manually. Scheduling remains off.
 
 ### Emulator settings used for these measurements
 
@@ -34,6 +34,14 @@ The existing emulator was changed to 720×1616 at density 280, and its three
 animation scales were set to zero. These are reversible emulator-only settings.
 Original values are recorded locally in `logs/animation-settings-before.json`
 and `logs/display-settings-before.txt`.
+
+Start the AVD normally from Android Studio. Do not add the `-read-only` launch
+option: the developer's test emulator used it, so app changes such as a saved
+Vinhomes login may be discarded when that emulator is shut down. This can cause
+a sign-in prompt after a full emulator restart; it does not explain an app
+session expiring while the emulator stays running. The helper detects a login
+screen and stops without submitting a booking. It does not preserve or renew the
+Vinhomes session automatically.
 
 To reproduce on a friend's emulator, with the emulator running:
 
