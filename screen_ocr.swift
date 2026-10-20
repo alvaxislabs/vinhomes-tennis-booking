@@ -10,19 +10,18 @@ struct TextBox: Encodable {
     let height: Double
 }
 
-guard let imageData = try? Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1])),
-      let source = CGImageSourceCreateWithData(imageData as CFData, nil),
-      let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
-    fputs("Could not load screenshot image\n", stderr)
-    exit(2)
-}
-
 let request = VNRecognizeTextRequest()
 request.recognitionLevel = .accurate
 request.usesLanguageCorrection = false
 request.recognitionLanguages = ["vi-VN", "en-US"]
 
-do {
+func recognize(_ path: String) throws -> Data {
+    guard let imageData = try? Data(contentsOf: URL(fileURLWithPath: path)),
+          let source = CGImageSourceCreateWithData(imageData as CFData, nil),
+          let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+        throw NSError(domain: "ScreenReader", code: 2)
+    }
+
     try VNImageRequestHandler(cgImage: image).perform([request])
     var boxes = (request.results ?? []).flatMap { observation -> [TextBox] in
         guard let candidate = observation.topCandidates(1).first else { return [] }
@@ -73,9 +72,32 @@ do {
                 x: cx-0.02, y: cy-0.01, width: 0.04, height: 0.02))
         }
     }
-    let output = try JSONEncoder().encode(boxes)
-    print(String(decoding: output, as: UTF8.self))
-} catch {
-    fputs("OCR failed: \(error)\n", stderr)
-    exit(3)
+    return try JSONEncoder().encode(boxes)
+}
+
+// Keep Vision loaded between screenshots. Each line is a local image path;
+// responses contain boxes or a generic error, never the path or input data.
+if CommandLine.arguments.dropFirst().first == "--server" {
+    FileHandle.standardOutput.write(Data("READY\n".utf8))
+    while let path = readLine() {
+        autoreleasepool {
+            do {
+                let output = try recognize(path)
+                FileHandle.standardOutput.write(output + Data([10]))
+            } catch {
+                FileHandle.standardOutput.write(Data("{\"error\":\"Screen recognition failed\"}\n".utf8))
+            }
+        }
+    }
+} else {
+    do {
+        guard CommandLine.arguments.count == 2 else {
+            throw NSError(domain: "ScreenReader", code: 1)
+        }
+        let output = try recognize(CommandLine.arguments[1])
+        FileHandle.standardOutput.write(output + Data([10]))
+    } catch {
+        fputs("Screen recognition failed\n", stderr)
+        exit(3)
+    }
 }

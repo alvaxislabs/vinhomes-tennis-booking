@@ -2,6 +2,25 @@
 
 This folder contains a local Mac helper for the Vinhomes Resident Android app.
 
+## Performance update — 21 October 2026
+
+The 06:00 run took 47.96 seconds to tap Confirm; success was not verified.
+That run did not meet the under-10-second requirement.
+
+The new reader keeps Apple's Vision process loaded between screenshots, uses a
+source-versioned compiled cache, and reports capture and recognition time for
+each stage. Both schedule installers now use Interactive process priority.
+Preparation runs at 05:55 and refreshes once at 05:59:30 to recover sign-in and
+warm the reader before release. Start the existing Pixel_9a emulator normally,
+with the display settings below; emulator startup is part of advance setup.
+
+A new no-submit test from signed-in Home to verified review and accepted terms
+completed in **7.04 seconds**, with a repeat at **9.27 seconds**, using 23 October, 14:00–15:00, BE7.
+This is a daytime test, not a measurement of server confirmation or 06:00 load.
+**The full confirmed-booking target under 10 seconds remains unverified.**
+No reservation was submitted during these optimization tests. Login recovery
+was also checked separately; login time is preparation, not included in 7.04s.
+
 ## Speed improvements measured on 20 October 2026
 
 The screenshot-based runner in `fast_flow.py` replaces Android accessibility
@@ -26,7 +45,8 @@ recognize the app's booking-details page and waited its full 12-second limit.
 The detector now recognizes that page. The exact server-confirmed end-to-end
 time remains unmeasured, and the **5–10 second whole-booking target is not yet
 verified**. The test booking details are in `TEST_BOOKING.md`; the resident
-account holder plans to cancel it manually. Scheduling remains off.
+account holder handles cancellation. This section records historical tests;
+check the installed scheduler for current scheduling status.
 
 ### Emulator settings used for these measurements
 
@@ -39,9 +59,8 @@ Start the AVD normally from Android Studio. Do not add the `-read-only` launch
 option: the developer's test emulator used it, so app changes such as a saved
 Vinhomes login may be discarded when that emulator is shut down. This can cause
 a sign-in prompt after a full emulator restart; it does not explain an app
-session expiring while the emulator stays running. The helper detects a login
-screen and stops without submitting a booking. It does not preserve or renew the
-Vinhomes session automatically.
+session expiring while the emulator stays running. The helper detects a login screen and can sign in using the private `.env`
+credentials. It cannot prevent the app from expiring a session.
 
 To reproduce on a friend's emulator, with the emulator running:
 
@@ -65,7 +84,7 @@ ADB="$HOME/Library/Android/sdk/platform-tools/adb"
 "$ADB" shell settings delete global animator_duration_scale
 ```
 
-Keep `booking.py`, `fast_flow.py`, and `screen_ocr.swift` together when copying
+Keep `booking.py`, `fast_flow.py`, `auth.py`, `vision_reader.py`, and `screen_ocr.swift` together when copying
 the helper. The native screen reader is compiled locally with the Mac's existing
 Swift tools; its first compilation belongs in preflight, before the timed run.
 

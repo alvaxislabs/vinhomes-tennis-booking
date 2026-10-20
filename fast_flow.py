@@ -25,11 +25,16 @@ class VisualFlow:
         return self.text
 
     def wait(self, predicate, stage, timeout=10):
+        first_sample = len(getattr(self.device, "vision_timings", []))
         end = time.monotonic() + timeout
         while time.monotonic() < end:
             self.read()
             if predicate(self.text):
                 logging.info("Fast flow +%.2fs: %s", time.monotonic()-self.started, stage)
+                samples = getattr(self.device, "vision_timings", [])[first_sample:]
+                logging.info("Stage %s: %d reads; capture %.3fs; recognition %.3fs; reader setup %.3fs",
+                             stage, len(samples), sum(s["capture"] for s in samples),
+                             sum(s["recognize"] for s in samples), sum(s["prepare"] for s in samples))
                 return
         from booking import BookingError
         raise BookingError(f"Timed out at {stage}; no further taps sent.")
@@ -68,6 +73,7 @@ def run(device, *, dry_run=False, test_slot=None):
     from booking import BookingError, PACKAGE, SLOT_PREFERENCES, target_date
     if test_slot and not dry_run:
         raise BookingError("Test slots cannot submit reservations.")
+    device.vision_timings = []
     flow = VisualFlow(device)
     device.verify()
     date = target_date()

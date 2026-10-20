@@ -126,39 +126,35 @@ class Device:
             logging.info("Android returned a partial accessibility snapshot; falling back to screenshot text once: %s", exc)
             return ET.Element("hierarchy")
 
+    def prepare_reader(self):
+        if not hasattr(self, "_reader"):
+            from vision_reader import VisionReader
+            self._reader = VisionReader(ROOT / "screen_ocr.swift")
+        self._reader.start()
+
     def ocr_boxes(self) -> list[dict[str, object]]:
-        """Read visible words and their screen positions using macOS Vision OCR."""
-        source = ROOT / "screen_ocr.swift"
-        if not source.exists():
-            raise BookingError("The visual text reader is missing: screen_ocr.swift")
-        swiftc = shutil.which("swiftc")
-        if not swiftc:
-            raise BookingError("This screen needs visual text reading, but Swift is unavailable. Install Apple's free Command Line Tools first.")
-        cache = Path.home() / "Library/Caches/VinhomesTennisBooking"
-        binary = cache / "screen-ocr"
-        device_args = [self.adb]
-        if self.serial:
-            device_args += ["-s", self.serial]
+        """Read the current screenshot using a warmed, reusable Vision worker."""
+        started = time.monotonic()
         try:
-            if not binary.exists() or binary.stat().st_mtime < source.stat().st_mtime:
-                cache.mkdir(parents=True, exist_ok=True)
-                built = subprocess.run([swiftc, "-O", str(source), "-o", str(binary)], capture_output=True, text=True, timeout=90)
-                if built.returncode:
-                    raise BookingError("Could not prepare the built-in macOS screen reader: " + built.stderr.strip()[-500:])
-            # Capture the PNG directly over adb instead of writing it on-device
-            # and then pulling it back (three adb calls instead of one).
-            capture = subprocess.run(device_args + ["exec-out", "screencap", "-p"], capture_output=True, timeout=10)
+            self.prepare_reader()
+            prepared = time.monotonic()
+            args = [self.adb] + (["-s", self.serial] if self.serial else [])
+            capture = subprocess.run(args + ["exec-out", "screencap", "-p"],
+                                     capture_output=True, timeout=10)
+            captured = time.monotonic()
             if capture.returncode or not capture.stdout.startswith(b"\x89PNG\r\n\x1a\n"):
-                raise BookingError("Could not capture a valid emulator screenshot for visual reading.")
-            with tempfile.NamedTemporaryFile(suffix=".png") as image_file:
-                image_file.write(capture.stdout)
-                image_file.flush()
-                result = subprocess.run([str(binary), image_file.name], capture_output=True, text=True, timeout=12)
-            if result.returncode:
-                raise BookingError("Visual reading of the emulator screen failed: " + result.stderr.strip()[-500:])
-            return json.loads(result.stdout)
-        except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as exc:
-            raise BookingError(f"Could not read visible text from the emulator screen: {exc}") from exc
+                raise BookingError("Could not capture a valid emulator screenshot.")
+            boxes = self._reader.read(capture.stdout)
+            finished = time.monotonic()
+            if not hasattr(self, "vision_timings"):
+                self.vision_timings = []
+            self.vision_timings.append({"prepare": prepared-started,
+                                       "capture": captured-prepared,
+                                       "recognize": finished-captured})
+            return boxes
+        except (OSError, RuntimeError, subprocess.SubprocessError, ValueError) as exc:
+            # Never include command arguments, OCR text or screenshot data.
+            raise BookingError("Could not read the emulator screen: " + str(exc)) from exc
 
     def tap_box(self, box: dict[str, object]) -> None:
         if self.screen_size is None:
@@ -411,10 +407,13 @@ def prepare_booking_window(device: Device) -> None:
     if "trang chủ" not in normalized:
         if device.foreground_package() != PACKAGE:
             device.command("shell", "monkey", "-p", PACKAGE, "1", timeout=8)
-        for _ in range(5):
+        for _ in range(8):
             tree = device.ui_tree()
             screen_text = device.read_screen_text(tree)
             device.ensure_session_active(screen_text)
+            if "danh sách tiện ích" in screen_text.casefold() and "sân tennis" in screen_text.casefold():
+                logging.info("Preflight passed: returned to the tennis amenities list.")
+                return
             if "trang chủ" in screen_text.casefold():
                 break
             device.command("shell", "input", "keyevent", "4")
@@ -680,6 +679,23 @@ def eligible_to_run(now: dt.datetime | None = None) -> bool:
     return True
 
 
+def wait_for_opening(device: Device, target: dt.datetime) -> None:
+    """Refresh preflight once near release, keeping recognition warm."""
+    refreshed = False
+    while dt.datetime.now(TZ) < target:
+        remaining = (target - dt.datetime.now(TZ)).total_seconds()
+        if not refreshed and remaining <= 30:
+            refreshed = True
+            try:
+                device.vision_timings = []
+                prepare_booking_window(device)
+                logging.info("Final preflight complete; screen reader warm before release.")
+            except (BookingError, subprocess.SubprocessError, OSError) as exc:
+                logging.error("Final preflight failed: %s", exc)
+            continue
+        time.sleep(min(0.2, max(0.01, remaining)))
+
+
 def watch_until_booking_time(device_serial: str | None) -> None:
     """Preflight five minutes early, then start one attempt at 06:00 VNT."""
     device = Device(find_adb(), device_serial)
@@ -709,8 +725,7 @@ def watch_until_booking_time(device_serial: str | None) -> None:
             prepare_booking_window(device)
         except (BookingError, subprocess.SubprocessError, OSError) as exc:
             logging.error("Preflight failed; will try the booking flow at 06:00: %s", exc)
-        while dt.datetime.now(TZ) < target:
-            time.sleep(min(0.2, max(0.05, (target - dt.datetime.now(TZ)).total_seconds())))
+        wait_for_opening(device, target)
         now = dt.datetime.now(TZ)
         if eligible_to_run(now):
             STATE_FILE.write_text(now.date().isoformat(), encoding="utf-8")
@@ -738,8 +753,7 @@ def run_next_opening_dry_run(device_serial: str | None) -> None:
         prepare_booking_window(device)
     except (BookingError, subprocess.SubprocessError, OSError) as exc:
         logging.error("Preflight failed; dry run will retry the app flow at 06:00: %s", exc)
-    while dt.datetime.now(TZ) < target:
-        time.sleep(min(0.2, max(0.05, (target - dt.datetime.now(TZ)).total_seconds())))
+    wait_for_opening(device, target)
     try:
         run_booking(device, dry_run=True)
     except (BookingError, subprocess.SubprocessError, OSError) as exc:

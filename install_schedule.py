@@ -20,7 +20,7 @@ def main() -> None:
     python = subprocess.check_output(["/usr/bin/env", "python3", "-c", "import sys; print(sys.executable)"], text=True).strip()
     RUNTIME.mkdir(parents=True, exist_ok=True)
     LOGS.mkdir(parents=True, exist_ok=True)
-    for name in ("booking.py", "fast_flow.py", "auth.py", "screen_ocr.swift"):
+    for name in ("booking.py", "fast_flow.py", "auth.py", "screen_ocr.swift", "vision_reader.py"):
         shutil.copy2(PROJECT / name, RUNTIME / name)
     local_env = PROJECT / ".env"
     if local_env.exists():
@@ -36,7 +36,8 @@ def main() -> None:
         "WorkingDirectory": str(RUNTIME),
         "StandardOutPath": str(LOGS / "scheduler.out.log"),
         "StandardErrorPath": str(LOGS / "scheduler.err.log"),
-        "ProcessType": "Background",
+        # Time-sensitive UI work must not receive background CPU/I/O throttling.
+        "ProcessType": "Interactive",
     }
     with PLIST.open("wb") as out:
         plistlib.dump(config, out)
