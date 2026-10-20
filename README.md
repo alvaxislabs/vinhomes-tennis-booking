@@ -90,7 +90,9 @@ stop the run for manual attention.
 2. Open `.env` in a text editor and fill `VINHOMES_USERNAME` and
    `VINHOMES_PASSWORD` with the resident account's login details.
 3. Save the file. Do not upload or send `.env`; send only `.env.example` when
-   sharing the project.
+   sharing the project. If the daily scheduler is already installed, run
+   `python3 install_schedule.py` again to copy the updated credentials into its
+   private runtime folder.
 
 Automatic recovery depends on the current Vinhomes login screen exposing one
 username field, one password field, and a login/continue button to Android's
@@ -145,7 +147,7 @@ It preflights at 05:55, attempts the booking flow at 06:00, stops before final c
 - The scheduler preflights at **05:55** and starts booking at **06:00 Asia/Ho_Chi_Minh**, regardless of the Mac's displayed timezone.
 - Keep the Mac logged in and connect it to power. The scheduler uses macOS `caffeinate` to prevent idle system sleep while it waits for 06:00; the display may sleep. Keep the Android emulator running.
 - It aims to book the date two days ahead, choose the first available court, try 20:00–21:00 then 19:00–20:00, accept the facility terms, and confirm.
-- Results are written under `logs/booking.log`. The log does not record account passwords or resident details.
+- Results are written under `~/Library/Application Support/VinhomesTennisBooking/logs/booking.log`. The log does not record account passwords or resident details.
 - The five-second goal is measured from app launch through screen navigation and submission. It is a target only; app startup, the network, server response, and screen-label differences can make it take longer or fail.
 
 ## Current limitations

@@ -24,6 +24,7 @@ def main() -> None:
     LOGS.mkdir(parents=True, exist_ok=True)
     shutil.copy2(PROJECT / "booking.py", RUNTIME / "booking.py")
     shutil.copy2(PROJECT / "fast_flow.py", RUNTIME / "fast_flow.py")
+    shutil.copy2(PROJECT / "auth.py", RUNTIME / "auth.py")
     shutil.copy2(PROJECT / "screen_ocr.swift", RUNTIME / "screen_ocr.swift")
     PLIST.parent.mkdir(parents=True, exist_ok=True)
     config = {
