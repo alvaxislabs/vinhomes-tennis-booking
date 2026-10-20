@@ -113,7 +113,25 @@ def recover_session(device, screen_text: str) -> bool:
     _input_text(device, credentials[1])
     # Hide the virtual keyboard so it cannot cover the login button.
     device.command("shell", "input", "keyevent", "4")
-    device.tap(submit)
+    # Allow the form to settle after the keyboard closes. The app can retain
+    # stale accessibility bounds at this transition, so tap the exact visible
+    # button label using current screenshot coordinates first.
+    time.sleep(0.5)
+    submit_boxes = device.matching_boxes(device.ocr_boxes(), "đăng nhập", exact=True)
+    if submit_boxes:
+        device.tap_box(submit_boxes[0])
+    else:
+        # Keep an accessibility fallback for app versions whose OCR omits the
+        # button label while still exposing a fresh clickable node.
+        device.visual_only = False
+        try:
+            refreshed_tree = device.ui_tree()
+        finally:
+            device.visual_only = True
+        refreshed_submit = _submit_node(refreshed_tree)
+        if refreshed_submit is None:
+            raise RuntimeError("Could not locate the visible sign-in button; credentials were not submitted.")
+        device.tap(refreshed_submit)
 
     end = time.monotonic() + 12
     while time.monotonic() < end:

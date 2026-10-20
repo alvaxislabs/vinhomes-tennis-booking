@@ -398,7 +398,12 @@ def prepare_booking_window(device: Device) -> None:
     device.verify()
     tree = device.ui_tree()
     screen_text = device.read_screen_text(tree)
+    was_signed_out = any(marker in screen_text.casefold() for marker in ("phiên đăng nhập", "đăng nhập", "login"))
     device.ensure_session_active(screen_text)
+    if was_signed_out:
+        # Recovery navigates to the resident home page. Discard the old login
+        # screen snapshot before deciding whether to continue into amenities.
+        screen_text = device.read_screen_text()
     normalized = screen_text.casefold()
     if "danh sách tiện ích" in normalized and "sân tennis" in normalized:
         logging.info("Preflight passed: signed-in app is already on the amenities list.")
@@ -426,7 +431,12 @@ def check_session_to_tennis_calendar(device: Device) -> None:
     device.verify()
     tree = device.ui_tree()
     screen_text = device.read_screen_text(tree)
+    was_signed_out = any(marker in screen_text.casefold() for marker in ("phiên đăng nhập", "đăng nhập", "login"))
     device.ensure_session_active(screen_text)
+    if was_signed_out:
+        # Recovery navigates to the resident home page. Discard the old login
+        # screen snapshot before deciding whether to continue into amenities.
+        screen_text = device.read_screen_text()
     normalized = screen_text.casefold()
     if "tháng" in normalized and "sân tennis" in normalized:
         logging.info("Session check passed: already on the tennis calendar; stopped without booking.")
