@@ -19,7 +19,8 @@ def main() -> None:
     PLIST.parent.mkdir(parents=True, exist_ok=True)
     config = {
         "Label": LABEL,
-        "ProgramArguments": [python, str(PROJECT / "booking.py"), "--watch"],
+        # Keep macOS awake while waiting for 06:00. The display may sleep.
+        "ProgramArguments": ["/usr/bin/caffeinate", "-i", python, str(PROJECT / "booking.py"), "--watch"],
         "RunAtLoad": True,
         "KeepAlive": True,
         "WorkingDirectory": str(PROJECT),
@@ -33,7 +34,7 @@ def main() -> None:
     subprocess.run(["launchctl", "bootout", f"gui/{uid}/{LABEL}"], check=False, capture_output=True)
     subprocess.run(["launchctl", "bootstrap", f"gui/{uid}", str(PLIST)], check=True)
     print(f"Installed and started daily scheduler: {PLIST}")
-    print("It preflights at 05:55 and starts booking at 06:00 Asia/Ho_Chi_Minh. Keep the Mac awake and the emulator booted.")
+    print("It preflights at 05:55 and starts booking at 06:00 Asia/Ho_Chi_Minh. Keep the Mac plugged in, logged in, and the emulator booted.")
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ screenshots/
 *.xml
 *.png
 .env*
+!.env.example
 logs/
 screenshots/
 *.png

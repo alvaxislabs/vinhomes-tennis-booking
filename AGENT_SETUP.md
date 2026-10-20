@@ -26,6 +26,9 @@ sharing a password or creating another booking.
 > Start the Android Virtual Device normally from Android Studio and do not use
 > its `-read-only` launch option. Read the session persistence note in
 > `README.md`; verify whether sign-in survives a normal emulator restart.
+> If I choose automatic session recovery, help me copy `.env.example` to `.env`
+> and explain where I enter the credentials locally. Never ask me to send the
+> values in chat, read them aloud, or include `.env` in a commit or upload.
 
 ## Test booking on the developer's account
 

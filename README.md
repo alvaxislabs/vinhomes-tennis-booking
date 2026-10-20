@@ -78,9 +78,25 @@ Swift tools; its first compilation belongs in preflight, before the timed run.
 - Verify the app's confirmation and write a local result log.
 - Optimize the complete flow, including opening the app and navigating to Tiện ích → Sân Tennis, toward a five-second target. The app and booking server may make that target impossible on some runs.
 
-## Account safety
+## Sign-in recovery
 
-Sign in yourself inside the Android emulator. The helper should reuse that app session and must not save or print your password. Do not put credentials or OTPs in this folder.
+The helper reuses the signed-in app session. If Vinhomes displays its login
+screen, it can enter the account name and password from a local `.env` file.
+It never writes credentials to logs or to GitHub. The `.env` file is ignored by
+Git and restricted to the current Mac user when read. OTP and CAPTCHA screens
+stop the run for manual attention.
+
+1. Copy `.env.example` to `.env` in this folder.
+2. Open `.env` in a text editor and fill `VINHOMES_USERNAME` and
+   `VINHOMES_PASSWORD` with the resident account's login details.
+3. Save the file. Do not upload or send `.env`; send only `.env.example` when
+   sharing the project.
+
+Automatic recovery depends on the current Vinhomes login screen exposing one
+username field, one password field, and a login/continue button to Android's
+accessibility service. If its screen differs, the helper stops without
+submitting a booking. Verify recovery during setup before relying on unattended
+booking. Do not share these credentials with your coding agent.
 
 ## What this package is
 
@@ -90,7 +106,7 @@ This is a Python helper script, not a new phone app. It uses Android Debug Bridg
 
 1. Install Android Studio from [Google's official Android Studio page](https://developer.android.com/studio). The Studio download and emulator image are large (several GB total) but free. The Android SDK license must be accepted during setup.
 2. In Android Studio, create one Android Virtual Device (AVD) with a Google Play system image. Start the virtual phone and complete its first-run setup.
-3. Open Google Play inside the emulator, install **Vinhomes Resident** by Vingroup, and sign in to the resident account manually. The booking helper never stores the resident password.
+3. Open Google Play inside the emulator, install **Vinhomes Resident** by Vingroup, and sign in to the resident account manually. Set up `.env` as described above if you want automatic recovery after session expiry.
 4. With the emulator open and signed in on the app's home screen, first check that the session survives navigation to the tennis calendar:
 
    ```sh
@@ -127,7 +143,7 @@ It preflights at 05:55, attempts the booking flow at 06:00, stops before final c
 ## Daily operation
 
 - The scheduler preflights at **05:55** and starts booking at **06:00 Asia/Ho_Chi_Minh**, regardless of the Mac's displayed timezone.
-- Keep the Mac awake, the user logged in, and the Android emulator running. A sleeping Mac or stopped emulator cannot book at the opening time.
+- Keep the Mac logged in and connect it to power. The scheduler uses macOS `caffeinate` to prevent idle system sleep while it waits for 06:00; the display may sleep. Keep the Android emulator running.
 - It aims to book the date two days ahead, choose the first available court, try 20:00–21:00 then 19:00–20:00, accept the facility terms, and confirm.
 - Results are written under `logs/booking.log`. The log does not record account passwords or resident details.
 - The five-second goal is measured from app launch through screen navigation and submission. It is a target only; app startup, the network, server response, and screen-label differences can make it take longer or fail.
@@ -138,5 +154,7 @@ The fast flow has been verified through review on both BE and BS routes and has
 completed one live free booking. Start it from Home, the amenities list, or the calendar;
 preflight returns the app to the amenities list. A changed calendar month/layout,
 expired session, unavailable courts, or ambiguous screen recognition stops the
-attempt rather than guessing. There is no automatic login or retry after an
-uncertain submission.
+attempt rather than guessing. Automatic login only handles a clearly exposed
+username/password form; it has not yet been verified on an expired Vinhomes
+session. OTP/CAPTCHA challenges and uncertain booking submissions stop without
+retrying.

@@ -2,7 +2,7 @@
 """Local UI automation for Vinhomes Resident tennis bookings on Android Emulator.
 
 This drives only the visible app UI through Android Debug Bridge (adb).
-It deliberately relies on a signed-in app session and never handles credentials.
+It reads optional sign-in details from an ignored, permission-restricted .env file.
 """
 
 from __future__ import annotations
@@ -241,12 +241,17 @@ class Device:
     def label(node: ET.Element) -> str:
         return " ".join(x for x in (node.attrib.get("text", ""), node.attrib.get("content-desc", "")) if x).strip()
 
-    @staticmethod
-    def ensure_session_active(screen_text: str) -> None:
-        """Stop immediately when the app reports that the resident session expired."""
+    def ensure_session_active(self, screen_text: str) -> None:
+        """Restore a clearly expired login with local .env credentials, or stop safely."""
         normalized = screen_text.casefold()
-        if "phiên đăng nhập" in normalized or "đăng nhập" in normalized:
-            raise BookingError("Vinhomes displayed a sign-in/session-expired screen. The app session ended; sign in manually before another run.")
+        if "phiên đăng nhập" in normalized or "đăng nhập" in normalized or "login" in normalized:
+            try:
+                from auth import recover_session
+                if recover_session(self, screen_text):
+                    return
+            except RuntimeError as exc:
+                raise BookingError(str(exc)) from exc
+            raise BookingError("Vinhomes displayed a sign-in/session-expired screen; no sign-in was attempted.")
 
     @staticmethod
     def ensure_booking_hours(screen_text: str) -> None:
@@ -450,8 +455,8 @@ def _run_booking_legacy(device: Device, *, dry_run: bool = False, test_slot: str
     date_to_book = target_date()
     logging.info("Starting booking attempt for %s (Viet Nam time).", date_to_book.isoformat())
 
-    # Reuse an authenticated app session. If it has expired, stop safely and ask the
-    # resident to sign in again rather than entering or storing credentials.
+    # Reuse an authenticated app session. A visible username/password form can
+    # be restored from .env; ambiguous forms and OTP challenges stop safely.
     # Bring the app forward without force-stopping it; force-stopping may invalidate
     # or disturb the resident's active session. If it resumes on an old screen,
     # return through the app's own back navigation to its home tab.
