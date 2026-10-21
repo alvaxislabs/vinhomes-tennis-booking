@@ -17,8 +17,14 @@ with the display settings below; emulator startup is part of advance setup.
 A new no-submit test from signed-in Home to verified review and accepted terms
 completed in **7.04 seconds**, with a repeat at **9.27 seconds**, using 23 October, 14:00–15:00, BE7.
 This is a daytime test, not a measurement of server confirmation or 06:00 load.
-**The full confirmed-booking target under 10 seconds remains unverified.**
-No reservation was submitted during these optimization tests. Login recovery
+A subsequent authorized live test completed from signed-in Home to detected
+booking success in **8.46 seconds**. Confirm was tapped at **6.23 seconds**.
+The app displayed booking reference **2451129** for **23 October 2026,
+10:00–11:00, BCX3 – Sân tennis 01**, at 0 VND.
+This meets the under-10-second target for this daytime run; 06:00 peak-load
+performance is not yet verified. Emulator startup and sign-in preparation are
+outside this measurement. Daily preferences remain 20:00–21:00, then 19:00–20:00.
+No reservation was submitted during the earlier dry runs. Login recovery
 was also checked separately; login time is preparation, not included in 7.04s.
 
 ## Speed improvements measured on 20 October 2026
@@ -42,9 +48,8 @@ These no-submit tests reach checked terms from Home. In the authorized live
 timing test, the helper tapped Confirm at 9.67 seconds. The app booked the court
 and displayed booking reference **2449166**, but the success detector did not
 recognize the app's booking-details page and waited its full 12-second limit.
-The detector now recognizes that page. The exact server-confirmed end-to-end
-time remains unmeasured, and the **5–10 second whole-booking target is not yet
-verified**. The test booking details are in `TEST_BOOKING.md`; the resident
+The detector now recognizes that page. At that time the exact server-confirmed end-to-end
+time was unmeasured. The subsequent 21 October test above measured 8.46 seconds. The test booking details are in `TEST_BOOKING.md`; the resident
 account holder handles cancellation. This section records historical tests;
 check the installed scheduler for current scheduling status.
 
