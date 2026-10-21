@@ -75,12 +75,19 @@ def run(device, *, dry_run=False, test_slot=None):
         raise BookingError("Test slots cannot submit reservations.")
     device.vision_timings = []
     flow = VisualFlow(device)
-    device.verify()
     date = target_date()
-    if device.foreground_package() != PACKAGE:
-        device.command("shell", "monkey", "-p", PACKAGE, "1", timeout=8)
-    flow.wait(lambda t: "trang chủ" in t or "danh sách tiện ích" in t or
-              ("tháng" in t and "sân tennis" in t), "signed-in start")
+    snapshot = getattr(device, "release_snapshot", None)
+    device.release_snapshot = None  # One use only; never reused on retry.
+    if snapshot and 0 <= time.monotonic() - snapshot[0] <= 2 and snapshot[1] == device.serial:
+        flow.boxes = snapshot[2]
+        flow.text = normalized(device.visual_text(flow.boxes))
+        logging.info("Using amenities screen verified immediately before release.")
+    else:
+        device.verify()
+        if device.foreground_package() != PACKAGE:
+            device.command("shell", "monkey", "-p", PACKAGE, "1", timeout=8)
+        flow.wait(lambda t: "trang chủ" in t or "danh sách tiện ích" in t or
+                  ("tháng" in t and "sân tennis" in t), "signed-in start")
     if "trang chủ" in flow.text:
         flow.tap("Tiện ích")
         flow.wait(lambda t: "danh sách tiện ích" in t and bool(flow.matches("Sân Tennis")), "amenities")

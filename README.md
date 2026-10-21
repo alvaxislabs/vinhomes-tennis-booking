@@ -27,6 +27,22 @@ outside this measurement. Daily preferences remain 20:00–21:00, then 19:00–2
 No reservation was submitted during the earlier dry runs. Login recovery
 was also checked separately; login time is preparation, not included in 7.04s.
 
+### Further release-time optimization
+
+The scheduler verifies the amenities screen just before release and consumes
+that snapshot once, only if it is no more than two seconds old and belongs to
+the same emulator. Stale/missing snapshots use normal checks. Script taps
+invalidate the prepared snapshot. Keep the emulator untouched during preparation.
+The final countdown polls every 10ms, and byte-identical screenshots reuse OCR.
+Date, slot, court, zero-price and accepted-terms validation remain mandatory.
+
+A simulated release test on 21 October began 0.0012s after its target and reached
+verified review plus accepted terms in **4.36s** (23 October, 11:00–12:00,
+BCX3 – Sân tennis 01). Another prepared run took **5.57s**. These were dry runs;
+no additional booking was submitted. A smaller display took 6.08s and was
+reverted to 720×1616, density 280. The verified live result remains **8.46s**;
+**confirmed booking under five seconds has not been achieved**.
+
 ## Speed improvements measured on 20 October 2026
 
 The screenshot-based runner in `fast_flow.py` replaces Android accessibility

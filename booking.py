@@ -74,6 +74,8 @@ class Device:
         self.screen_size = None
 
     def command(self, *args: str, timeout: float = 12) -> str:
+        if args[:2] in (("shell", "input"), ("shell", "monkey")):
+            self.release_snapshot = None
         cmd = [self.adb]
         if self.serial:
             cmd += ["-s", self.serial]
@@ -144,7 +146,13 @@ class Device:
             captured = time.monotonic()
             if capture.returncode or not capture.stdout.startswith(b"\x89PNG\r\n\x1a\n"):
                 raise BookingError("Could not capture a valid emulator screenshot.")
-            boxes = self._reader.read(capture.stdout)
+            # Only reuse OCR when the complete captured PNG is byte-identical.
+            # A new frame (including a changed badge/price) is always recognized.
+            if capture.stdout == getattr(self, "_last_png", None):
+                boxes = self._last_boxes
+            else:
+                boxes = self._reader.read(capture.stdout)
+                self._last_png, self._last_boxes = capture.stdout, boxes
             finished = time.monotonic()
             if not hasattr(self, "vision_timings"):
                 self.vision_timings = []
@@ -679,9 +687,31 @@ def eligible_to_run(now: dt.datetime | None = None) -> bool:
     return True
 
 
+def prepare_release_snapshot(device: Device) -> None:
+    """Cache one fresh, verified amenities screen immediately before release."""
+    device.release_snapshot = None
+    started = time.monotonic()
+    device.verify()
+    if device.foreground_package() != PACKAGE:
+        return
+    boxes = device.ocr_boxes()
+    text = device.visual_text(boxes).casefold()
+    tennis = device.matching_boxes(boxes, "Sân Tennis")
+    if "danh sách tiện ích" not in text or len(tennis) != 1:
+        return
+    size = device.command("shell", "wm", "size")
+    sizes = re.findall(r"(\d+)x(\d+)", size)
+    if not sizes:
+        return
+    device.screen_size = tuple(map(int, sizes[-1]))
+    device.release_snapshot = (started, device.serial, boxes)
+
+
 def wait_for_opening(device: Device, target: dt.datetime) -> None:
     """Refresh preflight once near release, keeping recognition warm."""
     refreshed = False
+    snapshot_attempted = False
+    device.release_snapshot = None
     while dt.datetime.now(TZ) < target:
         remaining = (target - dt.datetime.now(TZ)).total_seconds()
         if not refreshed and remaining <= 30:
@@ -693,7 +723,15 @@ def wait_for_opening(device: Device, target: dt.datetime) -> None:
             except (BookingError, subprocess.SubprocessError, OSError) as exc:
                 logging.error("Final preflight failed: %s", exc)
             continue
-        time.sleep(min(0.2, max(0.01, remaining)))
+        if not snapshot_attempted and remaining <= 1.5:
+            snapshot_attempted = True
+            try:
+                prepare_release_snapshot(device)
+            except (BookingError, subprocess.SubprocessError, OSError) as exc:
+                device.release_snapshot = None
+                logging.warning("Release snapshot unavailable; using normal screen checks: %s", exc)
+            continue
+        time.sleep(min(0.01 if remaining <= 2 else 0.2, max(0.001, remaining)))
 
 
 def watch_until_booking_time(device_serial: str | None) -> None:
