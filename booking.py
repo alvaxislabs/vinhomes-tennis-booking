@@ -40,6 +40,10 @@ class BookingError(RuntimeError):
     pass
 
 
+class BookingHoursClosed(BookingError):
+    """The app has not opened registration yet; safe to retry before submission."""
+
+
 def configure_logging() -> None:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
@@ -245,17 +249,19 @@ class Device:
     def label(node: ET.Element) -> str:
         return " ".join(x for x in (node.attrib.get("text", ""), node.attrib.get("content-desc", "")) if x).strip()
 
-    def ensure_session_active(self, screen_text: str) -> None:
+    def ensure_session_active(self, screen_text: str) -> bool:
         """Restore a clearly expired login with local .env credentials, or stop safely."""
         normalized = screen_text.casefold()
         if "phiên đăng nhập" in normalized or "đăng nhập" in normalized or "login" in normalized:
             try:
                 from auth import recover_session
                 if recover_session(self, screen_text):
-                    return
+                    self.release_snapshot = None
+                    return True
             except RuntimeError as exc:
                 raise BookingError(str(exc)) from exc
             raise BookingError("Vinhomes displayed a sign-in/session-expired screen; no sign-in was attempted.")
+        return False
 
     @staticmethod
     def ensure_booking_hours(screen_text: str) -> None:
@@ -267,7 +273,7 @@ class Device:
             if unicodedata.category(char) != "Mn"
         )
         if "chi nhan dang ky" in normalized and "06:00" in normalized and "21:00" in normalized:
-            raise BookingError(
+            raise BookingHoursClosed(
                 "Vinhomes is outside its tennis registration window (06:00–21:00 Vietnam time). "
                 "The app showed its hours notice instead of opening the booking calendar."
             )
@@ -330,7 +336,9 @@ class Device:
                 raise
             normalized = screen_text.casefold()
             wrong_sports = ("sân bóng rổ", "sân bóng đá", "sân bóng chuyền", "sân cầu lông", "sân pickleball")
-            if reject_other_sports and "sân tennis" in " ".join(labels).casefold() and any(sport in normalized for sport in wrong_sports):
+            if (reject_other_sports and "sân tennis" in " ".join(labels).casefold()
+                    and "đăng ký tiện ích" in normalized and "sân tennis" not in normalized
+                    and any(sport in normalized for sport in wrong_sports)):
                 raise BookingError(f"Stopped safely: the screen is for another sport while waiting for {stage or 'the tennis screen'}.")
             labels_match = all(label.casefold() in normalized for label in labels) if require_all else any(label.casefold() in normalized for label in labels)
             alternative_match = not require_one_of or any(label.casefold() in normalized for label in require_one_of)
@@ -687,30 +695,9 @@ def eligible_to_run(now: dt.datetime | None = None) -> bool:
     return True
 
 
-def prepare_release_snapshot(device: Device) -> None:
-    """Cache one fresh, verified amenities screen immediately before release."""
-    device.release_snapshot = None
-    started = time.monotonic()
-    device.verify()
-    if device.foreground_package() != PACKAGE:
-        return
-    boxes = device.ocr_boxes()
-    text = device.visual_text(boxes).casefold()
-    tennis = device.matching_boxes(boxes, "Sân Tennis")
-    if "danh sách tiện ích" not in text or len(tennis) != 1:
-        return
-    size = device.command("shell", "wm", "size")
-    sizes = re.findall(r"(\d+)x(\d+)", size)
-    if not sizes:
-        return
-    device.screen_size = tuple(map(int, sizes[-1]))
-    device.release_snapshot = (started, device.serial, boxes)
-
-
 def wait_for_opening(device: Device, target: dt.datetime) -> None:
     """Refresh preflight once near release, keeping recognition warm."""
     refreshed = False
-    snapshot_attempted = False
     device.release_snapshot = None
     while dt.datetime.now(TZ) < target:
         remaining = (target - dt.datetime.now(TZ)).total_seconds()
@@ -722,14 +709,6 @@ def wait_for_opening(device: Device, target: dt.datetime) -> None:
                 logging.info("Final preflight complete; screen reader warm before release.")
             except (BookingError, subprocess.SubprocessError, OSError) as exc:
                 logging.error("Final preflight failed: %s", exc)
-            continue
-        if not snapshot_attempted and remaining <= 1.5:
-            snapshot_attempted = True
-            try:
-                prepare_release_snapshot(device)
-            except (BookingError, subprocess.SubprocessError, OSError) as exc:
-                device.release_snapshot = None
-                logging.warning("Release snapshot unavailable; using normal screen checks: %s", exc)
             continue
         time.sleep(min(0.01 if remaining <= 2 else 0.2, max(0.001, remaining)))
 

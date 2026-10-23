@@ -2,6 +2,26 @@
 
 This folder contains a local Mac helper for the Vinhomes Resident Android app.
 
+## 23 October fix: recover at opening time
+
+This morning's log showed successful preflight at 05:55 and 05:59:30, followed
+by an opening-hours notice at 06:00:00.799. No Confirm tap occurred. The log does
+not establish whether a session reset caused that notice.
+
+The runner now reads the actual screen after 06:00; the pre-release screenshot
+shortcut has been removed. It handles an expired-session dialog, fills login
+fields from the private `.env`, and restarts navigation after successful login.
+A closed-hours notice is dismissed and retried with a 0.5-second pause during
+a 30-second recovery window. At most two recovered session resets are allowed.
+Any Confirm attempt disables automatic retry, including an uncertain tap result.
+Total timing includes recovery; login is not hidden from booking duration.
+
+Validation: 11 automated recovery tests; actual sign-out and automatic sign-in
+on the emulator reached amenities in **11.47s**. A simulated opening notice
+followed by real app navigation successfully reached the calendar and target
+date, then stopped because the requested daytime slot was full. No new booking
+was submitted. The actual next 06:00 reset has not yet been observed with this fix.
+
 ## Performance update — 21 October 2026
 
 The 06:00 run took 47.96 seconds to tap Confirm; success was not verified.
@@ -27,7 +47,7 @@ outside this measurement. Daily preferences remain 20:00–21:00, then 19:00–2
 No reservation was submitted during the earlier dry runs. Login recovery
 was also checked separately; login time is preparation, not included in 7.04s.
 
-### Further release-time optimization
+### Historical release-time optimization (superseded on 23 October)
 
 The scheduler verifies the amenities screen just before release and consumes
 that snapshot once, only if it is no more than two seconds old and belongs to

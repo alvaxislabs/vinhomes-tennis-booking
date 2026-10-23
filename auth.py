@@ -55,7 +55,7 @@ def _submit_node(root: ET.Element) -> ET.Element | None:
     labels = ("đăng nhập", "login", "tiếp tục", "continue")
     for node in root.iter():
         label = " ".join((node.attrib.get("text", ""), node.attrib.get("content-desc", ""))).casefold()
-        if any(word in label for word in labels) and node.attrib.get("clickable") == "true":
+        if label.strip() in labels and node.attrib.get("clickable") == "true":
             return node
     return None
 
@@ -93,6 +93,24 @@ def recover_session(device, screen_text: str) -> bool:
     finally:
         device.visual_only = True
     fields = _field_nodes(tree)
+    if len(fields) < 2 and "phiên đăng nhập" in normalized:
+        # Expiry may first show a modal, before the username/password form.
+        boxes = device.ocr_boxes()
+        controls = [b for b in boxes if str(b["text"]).strip().casefold()
+                    in ("đồng ý", "ok", "đăng nhập", "đăng nhập lại")]
+        if len(controls) == 1:
+            device.tap_box(controls[0])
+            end = time.monotonic() + 5
+            while time.monotonic() < end:
+                device.visual_only = False
+                try:
+                    tree = device.ui_tree()
+                finally:
+                    device.visual_only = True
+                fields = _field_nodes(tree)
+                if len(fields) >= 2:
+                    break
+                time.sleep(.2)
     if len(fields) < 2:
         raise RuntimeError("Could not safely identify username and password fields; sign-in was not attempted.")
     password_fields = [n for n in fields if n.attrib.get("password", "false").casefold() == "true"]
@@ -103,13 +121,13 @@ def recover_session(device, screen_text: str) -> bool:
     if len(username_fields) != 1:
         raise RuntimeError("Could not uniquely identify the username field; sign-in was not attempted.")
 
-    submit = _submit_node(tree)
-    if submit is None:
-        raise RuntimeError("Could not identify a sign-in button; sign-in details were not submitted.")
-
+    # The real app does not expose an enabled submit button until fields are
+    # filled. Locate and validate the exact button after entering credentials.
     device.tap(username_fields[0])
+    device.command("shell", "input", "keyevent", "123", *(["67"] * 64))
     _input_text(device, credentials[0])
     device.tap(password_field)
+    device.command("shell", "input", "keyevent", "123", *(["67"] * 64))
     _input_text(device, credentials[1])
     # Hide the virtual keyboard so it cannot cover the login button.
     device.command("shell", "input", "keyevent", "4")
@@ -118,7 +136,7 @@ def recover_session(device, screen_text: str) -> bool:
     # button label using current screenshot coordinates first.
     time.sleep(0.5)
     submit_boxes = device.matching_boxes(device.ocr_boxes(), "đăng nhập", exact=True)
-    if submit_boxes:
+    if len(submit_boxes) == 1:
         device.tap_box(submit_boxes[0])
     else:
         # Keep an accessibility fallback for app versions whose OCR omits the

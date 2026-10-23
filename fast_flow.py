@@ -8,6 +8,10 @@ def normalized(value):
     return " ".join(value.casefold().replace("–", "-").split())
 
 
+class SessionRestored(RuntimeError):
+    """Navigation must restart after sign-in, without using old screen data."""
+
+
 class VisualFlow:
     def __init__(self, device):
         self.device = device
@@ -19,7 +23,8 @@ class VisualFlow:
     def read(self):
         self.boxes = self.device.ocr_boxes()
         self.text = normalized(self.device.visual_text(self.boxes))
-        self.device.ensure_session_active(self.text)
+        if self.device.ensure_session_active(self.text):
+            raise SessionRestored("Session restored; restarting from current app screen.")
         self.device.ensure_booking_hours(self.text)
         self.samples += 1
         return self.text
@@ -69,25 +74,64 @@ class VisualFlow:
         raise BookingError("No available visible tennis card; stopped without guessing.")
 
 
+def dismiss_hours_notice(device):
+    from booking import BookingHoursClosed, Device
+    boxes = device.ocr_boxes()
+    try:
+        Device.ensure_booking_hours(device.visual_text(boxes))
+    except BookingHoursClosed:
+        controls = [b for b in boxes if normalized(str(b["text"]))
+                    in ("đóng", "đồng ý", "ok")]
+        if len(controls) == 1:
+            device.tap_box(controls[0])
+        else:
+            device.command("shell", "input", "keyevent", "4")
+
+
 def run(device, *, dry_run=False, test_slot=None):
+    from booking import BookingError, BookingHoursClosed, prepare_booking_window
+    started = time.monotonic()
+    deadline = started + 30
+    device.submission_started = False
+    device.release_snapshot = None
+    recoveries = 0
+    while True:
+        try:
+            return _run_once(device, dry_run=dry_run, test_slot=test_slot, started=started)
+        except (BookingHoursClosed, SessionRestored) as exc:
+            # Set before sending Confirm, including if the tap command times out.
+            if device.submission_started:
+                raise BookingError("Submission may have reached Vinhomes; no automatic retry. Check history.") from exc
+            if time.monotonic() >= deadline:
+                raise BookingError("Opening recovery window ended after 30 seconds; no reservation submitted.") from exc
+            if isinstance(exc, SessionRestored):
+                recoveries += 1
+                if recoveries > 2:
+                    raise BookingError("Repeated session resets; stopped before submission.") from exc
+                logging.info("Session recovered at +%.2fs; rebuilding booking navigation.", time.monotonic()-started)
+            else:
+                logging.info("App still reports registration closed at +%.2fs; retrying before submission.", time.monotonic()-started)
+                dismiss_hours_notice(device)
+                time.sleep(min(.5, max(0, deadline-time.monotonic())))
+            prepare_booking_window(device)
+            if time.monotonic() >= deadline:
+                raise BookingError("Opening recovery window ended during preparation; no reservation submitted.")
+
+
+def _run_once(device, *, dry_run=False, test_slot=None, started=None):
     from booking import BookingError, PACKAGE, SLOT_PREFERENCES, target_date
     if test_slot and not dry_run:
         raise BookingError("Test slots cannot submit reservations.")
     device.vision_timings = []
     flow = VisualFlow(device)
+    if started is not None:
+        flow.started = started
+    device.verify()
     date = target_date()
-    snapshot = getattr(device, "release_snapshot", None)
-    device.release_snapshot = None  # One use only; never reused on retry.
-    if snapshot and 0 <= time.monotonic() - snapshot[0] <= 2 and snapshot[1] == device.serial:
-        flow.boxes = snapshot[2]
-        flow.text = normalized(device.visual_text(flow.boxes))
-        logging.info("Using amenities screen verified immediately before release.")
-    else:
-        device.verify()
-        if device.foreground_package() != PACKAGE:
-            device.command("shell", "monkey", "-p", PACKAGE, "1", timeout=8)
-        flow.wait(lambda t: "trang chủ" in t or "danh sách tiện ích" in t or
-                  ("tháng" in t and "sân tennis" in t), "signed-in start")
+    if device.foreground_package() != PACKAGE:
+        device.command("shell", "monkey", "-p", PACKAGE, "1", timeout=8)
+    flow.wait(lambda t: "trang chủ" in t or "danh sách tiện ích" in t or
+              ("tháng" in t and "sân tennis" in t), "signed-in start")
     if "trang chủ" in flow.text:
         flow.tap("Tiện ích")
         flow.wait(lambda t: "danh sách tiện ích" in t and bool(flow.matches("Sân Tennis")), "amenities")
@@ -165,6 +209,7 @@ def run(device, *, dry_run=False, test_slot=None):
                      elapsed, flow.samples)
         return {"seconds": elapsed, "date": expected_date, "slot": chosen, "court": court}
     # Submit once only. An uncertain response must never trigger another tap.
+    device.submission_started = True
     flow.tap("Xác nhận")
     logging.info("Confirmation tapped at +%.2fs; waiting for server result.", time.monotonic()-flow.started)
     try:
