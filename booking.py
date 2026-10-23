@@ -249,13 +249,13 @@ class Device:
     def label(node: ET.Element) -> str:
         return " ".join(x for x in (node.attrib.get("text", ""), node.attrib.get("content-desc", "")) if x).strip()
 
-    def ensure_session_active(self, screen_text: str) -> bool:
+    def ensure_session_active(self, screen_text: str, *, boxes=None) -> bool:
         """Restore a clearly expired login with local .env credentials, or stop safely."""
         normalized = screen_text.casefold()
         if "phiên đăng nhập" in normalized or "đăng nhập" in normalized or "login" in normalized:
             try:
                 from auth import recover_session
-                if recover_session(self, screen_text):
+                if recover_session(self, screen_text, boxes=boxes):
                     self.release_snapshot = None
                     return True
             except RuntimeError as exc:

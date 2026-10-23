@@ -76,8 +76,9 @@ def _input_text(device, value: str) -> None:
         raise RuntimeError("Could not enter sign-in details into the Android screen") from exc
 
 
-def recover_session(device, screen_text: str) -> bool:
+def recover_session(device, screen_text: str, *, boxes=None) -> bool:
     """Sign in only when the visible screen is clearly a username/password form."""
+    started = time.monotonic()
     normalized = " ".join(screen_text.casefold().split())
     if not any(marker in normalized for marker in ("đăng nhập", "login", "phiên đăng nhập")):
         return False
@@ -87,54 +88,74 @@ def recover_session(device, screen_text: str) -> bool:
     if not credentials:
         raise RuntimeError("Signed-out app session; add VINHOMES_USERNAME and VINHOMES_PASSWORD to the local .env file.")
 
-    device.visual_only = False
-    try:
-        tree = device.ui_tree()
-    finally:
-        device.visual_only = True
-    fields = _field_nodes(tree)
-    if len(fields) < 2 and "phiên đăng nhập" in normalized:
-        # Expiry may first show a modal, before the username/password form.
-        boxes = device.ocr_boxes()
-        controls = [b for b in boxes if str(b["text"]).strip().casefold()
-                    in ("đồng ý", "ok", "đăng nhập", "đăng nhập lại")]
-        if len(controls) == 1:
-            device.tap_box(controls[0])
-            end = time.monotonic() + 5
-            while time.monotonic() < end:
-                device.visual_only = False
-                try:
-                    tree = device.ui_tree()
-                finally:
-                    device.visual_only = True
-                fields = _field_nodes(tree)
-                if len(fields) >= 2:
-                    break
-                time.sleep(.2)
-    if len(fields) < 2:
-        raise RuntimeError("Could not safely identify username and password fields; sign-in was not attempted.")
-    password_fields = [n for n in fields if n.attrib.get("password", "false").casefold() == "true"]
-    if len(password_fields) != 1:
-        raise RuntimeError("Could not uniquely identify the password field; sign-in was not attempted.")
-    password_field = password_fields[0]
-    username_fields = [n for n in fields if n is not password_field]
-    if len(username_fields) != 1:
-        raise RuntimeError("Could not uniquely identify the username field; sign-in was not attempted.")
+    boxes = device.ocr_boxes() if boxes is None else boxes
+    title = device.matching_boxes(boxes, "Đăng nhập tài khoản")
+    saved_user = device.matching_boxes(boxes, credentials[0])
+    phone_labels = device.matching_boxes(boxes, "Nhập số điện thoại")
+    empty_password = [b for b in boxes
+                      if str(b["text"]).casefold().strip().endswith("nhập mật khẩu")
+                      and float(b["height"]) >= .017]
+    # Only bypass the slow accessibility dump on this verified, empty-password
+    # form with the correct saved username. Unknown layouts use the full path.
+    fast_form = (len(title) == len(saved_user) == len(phone_labels) == len(empty_password) == 1
+                 and 0 < float(phone_labels[0]["y"])-float(saved_user[0]["y"]) < .06
+                 and float(title[0]["y"]) > float(phone_labels[0]["y"]) > float(empty_password[0]["y"]))
+    if fast_form:
+        device.tap_box(empty_password[0])
+        _input_text(device, credentials[1])
+        logging.info("Login +%.2fs: verified saved username and entered password visually", time.monotonic()-started)
+    else:
+        device.visual_only = False
+        try:
+            tree = device.ui_tree()
+        finally:
+            device.visual_only = True
+        logging.info("Login +%.2fs: form inspected", time.monotonic()-started)
+        fields = _field_nodes(tree)
+        if len(fields) < 2 and "phiên đăng nhập" in normalized:
+            # Expiry may first show a modal, before the username/password form.
+            boxes = device.ocr_boxes()
+            controls = [b for b in boxes if str(b["text"]).strip().casefold()
+                        in ("đồng ý", "ok", "đăng nhập", "đăng nhập lại")]
+            if len(controls) == 1:
+                device.tap_box(controls[0])
+                end = time.monotonic() + 5
+                while time.monotonic() < end:
+                    device.visual_only = False
+                    try:
+                        tree = device.ui_tree()
+                    finally:
+                        device.visual_only = True
+                    fields = _field_nodes(tree)
+                    if len(fields) >= 2:
+                        break
+                    time.sleep(.2)
+        if len(fields) < 2:
+            raise RuntimeError("Could not safely identify username and password fields; sign-in was not attempted.")
+        password_fields = [n for n in fields if n.attrib.get("password", "false").casefold() == "true"]
+        if len(password_fields) != 1:
+            raise RuntimeError("Could not uniquely identify the password field; sign-in was not attempted.")
+        password_field = password_fields[0]
+        username_fields = [n for n in fields if n is not password_field]
+        if len(username_fields) != 1:
+            raise RuntimeError("Could not uniquely identify the username field; sign-in was not attempted.")
 
-    # The real app does not expose an enabled submit button until fields are
-    # filled. Locate and validate the exact button after entering credentials.
-    device.tap(username_fields[0])
-    device.command("shell", "input", "keyevent", "123", *(["67"] * 64))
-    _input_text(device, credentials[0])
-    device.tap(password_field)
-    device.command("shell", "input", "keyevent", "123", *(["67"] * 64))
-    _input_text(device, credentials[1])
+        # The real app does not expose an enabled submit button until fields are
+        # filled. Locate and validate the exact button after entering credentials.
+        device.tap(username_fields[0])
+        device.command("shell", "input", "keyevent", "123", *(["67"] * max(1, len(username_fields[0].get("text", "")) + 1)))
+        _input_text(device, credentials[0])
+        logging.info("Login +%.2fs: username entered", time.monotonic()-started)
+        device.tap(password_field)
+        device.command("shell", "input", "keyevent", "123", *(["67"] * max(1, len(password_field.get("text", "")) + 1)))
+        _input_text(device, credentials[1])
+        logging.info("Login +%.2fs: password entered", time.monotonic()-started)
     # Hide the virtual keyboard so it cannot cover the login button.
     device.command("shell", "input", "keyevent", "4")
     # Allow the form to settle after the keyboard closes. The app can retain
     # stale accessibility bounds at this transition, so tap the exact visible
     # button label using current screenshot coordinates first.
-    time.sleep(0.5)
+    time.sleep(0.1)
     submit_boxes = device.matching_boxes(device.ocr_boxes(), "đăng nhập", exact=True)
     if len(submit_boxes) == 1:
         device.tap_box(submit_boxes[0])
@@ -151,14 +172,15 @@ def recover_session(device, screen_text: str) -> bool:
             raise RuntimeError("Could not locate the visible sign-in button; credentials were not submitted.")
         device.tap(refreshed_submit)
 
+    logging.info("Login +%.2fs: submitted", time.monotonic()-started)
     end = time.monotonic() + 12
     while time.monotonic() < end:
         text = " ".join(device.visual_text(device.ocr_boxes()).casefold().split())
         if "đăng nhập thành công" in text or "login successful" in text:
-            logging.info("Vinhomes session restored from local credentials.")
+            logging.info("Vinhomes session restored from local credentials in %.2fs.", time.monotonic()-started)
             return True
         if "trang chủ" in text or "danh sách tiện ích" in text:
-            logging.info("Vinhomes session restored from local credentials.")
+            logging.info("Vinhomes session restored from local credentials in %.2fs.", time.monotonic()-started)
             return True
         if any(marker in text for marker in ("otp", "captcha", "mã xác thực", "mã otp")):
             raise RuntimeError("The app requested OTP or a challenge; automatic sign-in stopped.")

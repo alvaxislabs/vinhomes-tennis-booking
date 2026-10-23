@@ -77,11 +77,25 @@ class RecoveryTests(unittest.TestCase):
         root = ET.fromstring('<hierarchy><node text="Đăng nhập tài khoản" clickable="true"/><node text="Đăng nhập" clickable="true"/></hierarchy>')
         self.assertEqual(auth._submit_node(root).get('text'), 'Đăng nhập')
 
+    def test_recognized_saved_username_fast_login(self):
+        d = Mock()
+        form = [dict(text='Đăng nhập tài khoản', y=.8),
+                dict(text='Nhập số điện thoại', y=.7),
+                dict(text='dummy-user', y=.68),
+                dict(text='C Nhập mật khẩu', y=.6, height=.02)]
+        d.ocr_boxes.side_effect = [form, [{'text': 'Đăng nhập'}], [{'text': 'Trang chủ'}]]
+        d.matching_boxes.side_effect = lambda boxes, label, **kw: [b for b in boxes if b['text'].casefold() == label.casefold()]
+        d.visual_text.return_value = 'Trang chủ'
+        with patch('auth.load_credentials', return_value=('dummy-user', 'dummy-password')), patch('auth._input_text') as enter, patch('auth.time.sleep'):
+            self.assertTrue(auth.recover_session(d, 'Đăng nhập tài khoản'))
+        d.ui_tree.assert_not_called()
+        enter.assert_called_once_with(d, 'dummy-password')
+
     def test_expiry_modal_then_login(self):
         d = Mock()
         d.ui_tree.side_effect = [ET.fromstring('<hierarchy/>'), ET.fromstring('<hierarchy><node class="android.widget.EditText"/><node class="android.widget.EditText" password="true"/><node text="Đăng nhập" clickable="true"/></hierarchy>')]
-        d.ocr_boxes.side_effect = [[{'text': 'Đồng ý'}], [{'text': 'Đăng nhập'}], [{'text': 'Trang chủ'}]]
-        d.matching_boxes.return_value = [{'text': 'Đăng nhập'}]
+        d.ocr_boxes.side_effect = [[], [{'text': 'Đồng ý'}], [{'text': 'Đăng nhập'}], [{'text': 'Trang chủ'}]]
+        d.matching_boxes.side_effect = lambda boxes, label, **kwargs: [b for b in boxes if b['text'].casefold() == label.casefold()]
         d.visual_text.return_value = 'Trang chủ'
         with patch('auth.load_credentials', return_value=('dummy-user', 'dummy-password')), patch('auth._input_text') as enter, patch('auth.time.sleep'):
             self.assertTrue(auth.recover_session(d, 'Phiên đăng nhập đã hết hạn'))

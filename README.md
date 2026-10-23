@@ -2,6 +2,24 @@
 
 This folder contains a local Mac helper for the Vinhomes Resident Android app.
 
+## 23 October login-speed update
+
+The login fallback now clears the observed field length instead of sending 64
+Backspace presses per field. Each login stage is timed without logging credentials.
+A visual fast path recognizes the exact login title, correct saved username, and
+empty password hint in their expected vertical order; it enters only the password.
+Unrecognized forms still use the inspected accessibility fields. The current
+screenshot is reused for login recognition, and successful login resumes directly
+from Home instead of performing duplicate preparation/navigation.
+
+Observed real forced-login results: 4.55s for one login, 6.66s for another.
+One full dry run starting signed out reached calendar time availability in 7.13s,
+then stopped because the requested slot was full. No additional booking was made.
+**A confirmed booking under ten seconds including forced login remains unverified.**
+These figures must not be substituted for a full confirmed-booking measurement.
+Android's [input command implementation](https://android.googlesource.com/platform/frameworks/base/+/1cff983/cmds/input/src/com/android/commands/input/Input.java)
+and this emulator's built-in command help informed the input changes.
+
 ## 23 October fix: recover at opening time
 
 This morning's log showed successful preflight at 05:55 and 05:59:30, followed

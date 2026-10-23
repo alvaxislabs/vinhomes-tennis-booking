@@ -23,7 +23,7 @@ class VisualFlow:
     def read(self):
         self.boxes = self.device.ocr_boxes()
         self.text = normalized(self.device.visual_text(self.boxes))
-        if self.device.ensure_session_active(self.text):
+        if self.device.ensure_session_active(self.text, boxes=self.boxes):
             raise SessionRestored("Session restored; restarting from current app screen.")
         self.device.ensure_booking_hours(self.text)
         self.samples += 1
@@ -113,7 +113,8 @@ def run(device, *, dry_run=False, test_slot=None):
                 logging.info("App still reports registration closed at +%.2fs; retrying before submission.", time.monotonic()-started)
                 dismiss_hours_notice(device)
                 time.sleep(min(.5, max(0, deadline-time.monotonic())))
-            prepare_booking_window(device)
+            if not isinstance(exc, SessionRestored):
+                prepare_booking_window(device)
             if time.monotonic() >= deadline:
                 raise BookingError("Opening recovery window ended during preparation; no reservation submitted.")
 
