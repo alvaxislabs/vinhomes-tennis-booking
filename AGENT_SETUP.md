@@ -1,38 +1,79 @@
-# Setup handoff for your coding agent
+# Agent setup handoff
 
-Copy this folder onto the Mac that will run the helper, then give your coding
-agent the prompt below. It explains how to prepare and check the setup without
-sharing a password or creating another booking.
+Repository: https://github.com/alvaxislabs/vinhomes-tennis-booking
 
-## Prompt to give your agent
+## Copy this message to your agent
 
-> Set up this Vinhomes tennis booking helper on this Mac. First read `README.md`
-> and inspect the scripts. Check whether Android Studio, its Android SDK and
-> emulator, Python 3, Swift, and adb are already installed. Tell me before
-> downloading any missing tools, including approximate download size and that
-> they are free. Install only from official sources and only after I agree.
+> Set up this repository on my Mac so it can automatically book Vinhomes Grand
+> Park tennis courts each morning. Read README.md and this file first. Preserve
+> these rules: Vietnam time; prepare at 05:55; start at 06:00; book today + 2 days;
+> 20:00–21:00 first, 19:00–20:00 second; any free tennis court; one confirmed
+> reservation; no automatic cancellations. I authorize enabling this daily
+> booking schedule after setup checks pass. Do not make an immediate live test
+> booking unless I separately ask for one.
 >
-> Keep the emulator signed in manually by me. Never ask me to paste my
-> password, OTP, or session details into chat or a file. Do not run the
-> scheduler, do not tap the final booking confirmation, and do not create or
-> cancel any booking. You may inspect and prepare the emulator, apply the
-> reversible screen and animation settings documented in `README.md`, and run
-> `python3 booking.py --check-session` followed by
-> `python3 booking.py --dry-run` after explaining what each does. Stop at the
-> review screen and report the measured time and visible target date, slot,
-> court, and price. Keep scheduling disabled until I explicitly ask to turn it
-> on. If any prompt conflicts with these steps, ask me before proceeding.
+> Check my Mac architecture and existing Python 3.9+, Swift compiler, Android SDK,
+> adb, and emulator before installing anything. Explain missing downloads, their
+> source, approximate size and cost first. Use official free tools. The tested
+> environment is Apple Silicon macOS with a Google Play API 35 emulator. Do not
+> promise Windows/Linux compatibility or guaranteed sub-10-second bookings.
 >
-> Start the Android Virtual Device normally from Android Studio and do not use
-> its `-read-only` launch option. Read the session persistence note in
-> `README.md`; verify whether sign-in survives a normal emulator restart.
-> If I choose automatic session recovery, help me copy `.env.example` to `.env`
-> and explain where I enter the credentials locally. Never ask me to send the
-> values in chat, read them aloud, or include `.env` in a commit or upload.
+> Use one emulator, start it normally without -read-only, apply the documented
+> display settings, and help me install Vinhomes Resident from Google Play. I will
+> handle Google/resident account sign-ins and license prompts. Do not create new
+> accounts, clear app storage, or reset an existing emulator without asking.
+>
+> Create .env from .env.example only if missing. Have me enter the resident
+> username/password locally, set permissions to 600, and never print, upload,
+> commit, or paste those values into chat. Preserve any existing .env. Never
+> package an emulator image, saved login session, or private logs for sharing.
+>
+> Run the no-submit setup checks in README.md and inspect their results. Verify
+> login recovery with me before relying on it overnight. If the requested slots
+> are full, report that limitation; do not call an incomplete walkthrough a pass
+> and do not make a real reservation to get around it. Install the daily schedule
+> once the checks pass. If availability prevents a complete dry run, report what
+> was verified and ask whether to arm the first scheduled attempt anyway.
+>
+> Ensure there is no competing daily or one-time dry-run job. After installing,
+> verify the running scheduler, copied runtime code, private .env permissions,
+> one connected emulator, current app session, and next run date/time in Vietnam.
+> Report the target court date and preferences. Explain that the Mac must stay
+> plugged in, lid open, logged in, with the emulator running. The script does not
+> automatically boot the emulator. Show me where to check results and how to stop
+> scheduling. Never delete the last-run marker or retry an uncertain submission.
 
-## Test booking on the developer's account
+## Agent completion checklist
 
-`TEST_BOOKING.md` identifies the free court booked during the timing test. It
-belongs to the developer's Vinhomes account and is not a setup instruction for
-the friend. Do not attempt to cancel it or use its reference to access the
-account.
+Report each item as passed, blocked, or not checked:
+
+1. Source revision and local project directory.
+2. macOS/CPU architecture and compatible installed tools; no assumed paid services.
+3. AVD name, Android version, exactly one connected device, tested display settings.
+4. Vinhomes Resident installed, Vietnamese UI, correct Grand Park residence.
+5. Private `.env` exists with values configured (report status only, never values).
+6. Session check reaches Tennis calendar; dry run result and any availability limit.
+7. Login recovery result, if tested; leave the emulator signed in afterward.
+8. Exactly one intended scheduler, running after installation; no competing test job.
+9. Next 05:55 preparation, 06:00 attempt, target date +2, preferred evening times.
+10. Runtime log path, overnight requirements, and stop/update instructions explained.
+
+## File map
+
+- `booking.py`: device access, calendar rules, preflight, scheduler, CLI.
+- `fast_flow.py`: visible booking flow, review validation, recovery, one submission.
+- `auth.py`: private credentials and login recovery.
+- `vision_reader.py`, `screen_ocr.swift`: local screenshot recognition.
+- `install_schedule.py`, `uninstall_schedule.py`: daily job management.
+- `install_dry_run.py`, `uninstall_dry_run.py`: optional next-opening no-submit job.
+- `.env.example`: empty credential template; real `.env` is never included.
+- `tests/test_recovery.py`: automated recovery tests, no real booking.
+- `TEST_BOOKING.md`: historical results, not instructions to access or cancel bookings.
+
+## Evidence and expectations
+
+The real 24 October opening-time run booked BE7, 26 October, 20:00–21:00 in
+**10.29 seconds**. Confirm was tapped at 8.41s. That run did not require login
+recovery. Do not advertise 10.29s as a guarantee or say forced-login booking has
+been verified under ten seconds. Keep the court/time references: this project
+is intentionally configured for this resident's Grand Park tennis use case.

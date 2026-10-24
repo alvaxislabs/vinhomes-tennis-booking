@@ -1,3 +1,20 @@
+# Scheduled morning booking — 24 October 2026
+
+- Confirmed court: **BE7 – Sân tennis**
+- Court date: **26 October 2026**
+- Court time: **20:00–21:00 Vietnam time**
+- Verified review: 06:00:08.198, +8.17s
+- Confirm tapped: 06:00:08.445, +8.41s
+- Success detected: 06:00:10.322, **+10.29s**
+- Price verified before submission: 0 VND
+- No booking reference was captured in this log; do not invent one.
+
+Both advance preparation checks failed to return to Home. The release-time flow
+recovered and succeeded. No login recovery was logged during this run. Cancellation,
+if desired, is handled by the account holder; setup agents must not cancel bookings.
+
+---
+
 # Latest live timing test — 21 October 2026
 
 One real booking was submitted and the app displayed “Đã đăng ký” with a booking

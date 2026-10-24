@@ -1,127 +1,90 @@
-# Vinhomes tennis booking helper
+# Vinhomes Grand Park tennis booking helper
 
-This folder contains a local Mac helper for the Vinhomes Resident Android app.
+A local **macOS Python script** that operates Vinhomes Resident inside an Android
+emulator. It reads screenshots and taps the app's visible controls. It does not
+use a private booking API. No paid automation service or Python packages are required.
 
-## 23 October login-speed update
+**Giving this to a friend's agent? Start with [AGENT_SETUP.md](AGENT_SETUP.md).**
 
-The login fallback now clears the observed field length instead of sending 64
-Backspace presses per field. Each login stage is timed without logging credentials.
-A visual fast path recognizes the exact login title, correct saved username, and
-empty password hint in their expected vertical order; it enters only the password.
-Unrecognized forms still use the inspected accessibility fields. The current
-screenshot is reused for login recognition, and successful login resumes directly
-from Home instead of performing duplicate preparation/navigation.
+## Latest real morning result
 
-Observed real forced-login results: 4.55s for one login, 6.66s for another.
-One full dry run starting signed out reached calendar time availability in 7.13s,
-then stopped because the requested slot was full. No additional booking was made.
-**A confirmed booking under ten seconds including forced login remains unverified.**
-These figures must not be substituted for a full confirmed-booking measurement.
-Android's [input command implementation](https://android.googlesource.com/platform/frameworks/base/+/1cff983/cmds/input/src/com/android/commands/input/Input.java)
-and this emulator's built-in command help informed the input changes.
+On **24 October 2026 at 06:00 Vietnam time**, the scheduled runner successfully
+booked **BE7 – Sân tennis, 26 October 2026, 20:00–21:00**:
 
-## 23 October fix: recover at opening time
+| Milestone from booking-flow start | Time |
+| --- | ---: |
+| Verified review | 8.17s |
+| Confirm tapped once | 8.41s |
+| Booking success detected | **10.29s** |
 
-This morning's log showed successful preflight at 05:55 and 05:59:30, followed
-by an opening-hours notice at 06:00:00.799. No Confirm tap occurred. The log does
-not establish whether a session reset caused that notice.
+The two advance preparation checks failed to return to Home, but the 06:00 flow
+recovered and completed. The log contains no login recovery during this run.
+This is a successful unattended opening-time booking, **not proof of a guaranteed
+under-10-second result**, nor a measurement of opening-time forced login.
+A previous daytime booking completed in 8.46s. See [TEST_BOOKING.md](TEST_BOOKING.md).
 
-The runner now reads the actual screen after 06:00; the pre-release screenshot
-shortcut has been removed. It handles an expired-session dialog, fills login
-fields from the private `.env`, and restarts navigation after successful login.
-A closed-hours notice is dismissed and retried with a 0.5-second pause during
-a 30-second recovery window. At most two recovered session resets are allowed.
-Any Confirm attempt disables automatic retry, including an uncertain tap result.
-Total timing includes recovery; login is not hidden from booking duration.
+## Booking rules — keep these defaults
 
-Validation: 11 automated recovery tests; actual sign-out and automatic sign-in
-on the emulator reached amenities in **11.47s**. A simulated opening notice
-followed by real app navigation successfully reached the calendar and target
-date, then stopped because the requested daytime slot was full. No new booking
-was submitted. The actual next 06:00 reset has not yet been observed with this fix.
+- Community: **Vinhomes Grand Park, District 9**; the resident account determines access.
+- Timezone: **Asia/Ho_Chi_Minh (UTC+7)**, independent of the Mac's display timezone.
+- Prepare at **05:55**, recheck at **05:59:30**, start at **06:00** daily.
+- Book **today + 2 calendar days**: Monday opens Wednesday.
+- First choice **20:00–21:00**; fallback **19:00–20:00**.
+- Any available tennis court, exactly one successful reservation per attempt.
+- Verify the requested date, time, court, and **0 VND total** before confirming.
+- Accept the displayed terms, tap Confirm once, then look for booking success.
+- Never automatically cancel a booking. The account holder handles cancellation.
 
-## Performance update — 21 October 2026
+## Requirements
 
-The 06:00 run took 47.96 seconds to tap Confirm; success was not verified.
-That run did not meet the under-10-second requirement.
+Verified on an Apple Silicon Mac with Android API 35, a Google Play emulator,
+Python 3.9+, Apple's Swift compiler/Vision framework, and Android platform-tools.
+Windows/Linux are not supported by this package's OCR or scheduling code.
+Intel Macs have not been validated; use an architecture-compatible emulator image.
 
-The new reader keeps Apple's Vision process loaded between screenshots, uses a
-source-versioned compiled cache, and reports capture and recognition time for
-each stage. Both schedule installers now use Interactive process priority.
-Preparation runs at 05:55 and refreshes once at 05:59:30 to recover sign-in and
-warm the reader before release. Start the existing Pixel_9a emulator normally,
-with the display settings below; emulator startup is part of advance setup.
+Check existing installations first. Missing tools should come from official sources:
 
-A new no-submit test from signed-in Home to verified review and accepted terms
-completed in **7.04 seconds**, with a repeat at **9.27 seconds**, using 23 October, 14:00–15:00, BE7.
-This is a daytime test, not a measurement of server confirmation or 06:00 load.
-A subsequent authorized live test completed from signed-in Home to detected
-booking success in **8.46 seconds**. Confirm was tapped at **6.23 seconds**.
-The app displayed booking reference **2451129** for **23 October 2026,
-10:00–11:00, BCX3 – Sân tennis 01**, at 0 VND.
-This meets the under-10-second target for this daytime run; 06:00 peak-load
-performance is not yet verified. Emulator startup and sign-in preparation are
-outside this measurement. Daily preferences remain 20:00–21:00, then 19:00–20:00.
-No reservation was submitted during the earlier dry runs. Login recovery
-was also checked separately; login time is preparation, not included in 7.04s.
+- [Android Studio / Android SDK](https://developer.android.com/studio): free;
+  SDK and emulator images require several GB in total.
+- Apple Command Line Tools, including `swiftc` (install using Apple's macOS prompt
+  from `xcode-select --install` if missing).
+- Python **3.9 or newer**. The scripts use `zoneinfo`.
+- [Vinhomes Resident on Google Play](https://play.google.com/store/apps/details?id=com.vinhomes.resident).
 
-### Historical release-time optimization (superseded on 23 October)
+The app/package, Google Play sign-in, and any SDK license prompts require the
+owner's own accounts and decisions. The package contains no Android image or APK.
 
-The scheduler verifies the amenities screen just before release and consumes
-that snapshot once, only if it is no more than two seconds old and belongs to
-the same emulator. Stale/missing snapshots use normal checks. Script taps
-invalidate the prepared snapshot. Keep the emulator untouched during preparation.
-The final countdown polls every 10ms, and byte-identical screenshots reuse OCR.
-Date, slot, court, zero-price and accepted-terms validation remain mandatory.
+## Setup
 
-A simulated release test on 21 October began 0.0012s after its target and reached
-verified review plus accepted terms in **4.36s** (23 October, 11:00–12:00,
-BCX3 – Sân tennis 01). Another prepared run took **5.57s**. These were dry runs;
-no additional booking was submitted. A smaller display took 6.08s and was
-reverted to 720×1616, density 280. The verified live result remains **8.46s**;
-**confirmed booking under five seconds has not been achieved**.
+### 1. Get the project
 
-## Speed improvements measured on 20 October 2026
+```sh
+git clone https://github.com/alvaxislabs/vinhomes-tennis-booking.git
+cd vinhomes-tennis-booking
+```
 
-The screenshot-based runner in `fast_flow.py` replaces Android accessibility
-inspection. An isolated test showed that activating accessibility inspection
-reset the selected time from 14:00 to 09:00. Screenshot reading preserves it.
-The runner also reuses control locations from each screenshot, waits for actual
-screen contents instead of fixed delays, and handles both BE and BS court flows.
+If GitHub denies access, the repository owner must grant access, or provide the
+source ZIP. Extract it and open its folder. Do not request someone else's GitHub token.
 
-Measured on the running Apple Silicon Mac emulator, already signed in:
+Check tools:
 
-| Start → end | Test route | Seconds |
-| --- | --- | ---: |
-| Home → verified review, original resolution | BE, 14:00–15:00 | 7.02 |
-| Home → verified review and checked terms, original resolution | BE, 14:00–15:00 | 10.55 |
-| Home → verified review and checked terms, 720×1616 | BE, 14:00–15:00 | 6.00 |
-| Home → verified review and checked terms, 720×1616 | BS, 09:00–10:00 | 7.26 |
+```sh
+python3 --version
+swiftc --version
+"$HOME/Library/Android/sdk/platform-tools/adb" devices
+```
 
-These no-submit tests reach checked terms from Home. In the authorized live
-timing test, the helper tapped Confirm at 9.67 seconds. The app booked the court
-and displayed booking reference **2449166**, but the success detector did not
-recognize the app's booking-details page and waited its full 12-second limit.
-The detector now recognizes that page. At that time the exact server-confirmed end-to-end
-time was unmeasured. The subsequent 21 October test above measured 8.46 seconds. The test booking details are in `TEST_BOOKING.md`; the resident
-account holder handles cancellation. This section records historical tests;
-check the installed scheduler for current scheduling status.
+### 2. Prepare one emulator
 
-### Emulator settings used for these measurements
+In Android Studio: **More Actions → Virtual Device Manager → Create Device**.
+Use a Google Play image compatible with the Mac; the tested setup was Pixel 9a,
+API 35. Start it normally. **Do not use `-read-only`**, which may discard saved
+app changes when the emulator closes. Keep exactly one Android device connected.
 
-The existing emulator was changed to 720×1616 at density 280, and its three
-animation scales were set to zero. These are reversible emulator-only settings.
-Original values are recorded locally in `logs/animation-settings-before.json`
-and `logs/display-settings-before.txt`.
+Install Vinhomes Resident through Google Play. Sign in and confirm the correct
+Grand Park residence. Leave the app in Vietnamese, on Home.
 
-Start the AVD normally from Android Studio. Do not add the `-read-only` launch
-option: the developer's test emulator used it, so app changes such as a saved
-Vinhomes login may be discarded when that emulator is shut down. This can cause
-a sign-in prompt after a full emulator restart; it does not explain an app
-session expiring while the emulator stays running. The helper detects a login screen and can sign in using the private `.env`
-credentials. It cannot prevent the app from expiring a session.
-
-To reproduce on a friend's emulator, with the emulator running:
+Apply the tested display settings to the running emulator:
 
 ```sh
 ADB="$HOME/Library/Android/sdk/platform-tools/adb"
@@ -132,109 +95,146 @@ ADB="$HOME/Library/Android/sdk/platform-tools/adb"
 "$ADB" shell settings put global animator_duration_scale 0
 ```
 
-To restore this emulator's original display settings:
+These only change the emulator. Record existing settings before applying them.
+To return to device defaults, use `wm size reset`, `wm density reset`, and restore
+the original animation settings (normally `1.0`).
 
-```sh
-ADB="$HOME/Library/Android/sdk/platform-tools/adb"
-"$ADB" shell wm size reset
-"$ADB" shell wm density reset
-"$ADB" shell settings put global window_animation_scale 1.0
-"$ADB" shell settings put global transition_animation_scale 1.0
-"$ADB" shell settings delete global animator_duration_scale
+### 3. Configure private login recovery
+
+Create `.env` from `.env.example` **only if `.env` does not already exist**. The
+owner fills in the two values locally:
+
+```dotenv
+VINHOMES_USERNAME=
+VINHOMES_PASSWORD=
 ```
 
-Keep `booking.py`, `fast_flow.py`, `auth.py`, `vision_reader.py`, and `screen_ocr.swift` together when copying
-the helper. The native screen reader is compiled locally with the Mac's existing
-Swift tools; its first compilation belongs in preflight, before the timed run.
-
-## Intended booking rules
-
-- Preflight at 05:55 Asia/Ho_Chi_Minh, then start booking at 06:00 for the date newly opened by the community.
-- Choose any available tennis court.
-- Try 20:00–21:00 first, then 19:00–20:00.
-- Accept the displayed booking terms and submit the free booking.
-- Verify the app's confirmation and write a local result log.
-- Optimize the complete flow, including opening the app and navigating to Tiện ích → Sân Tennis, toward a five-second target. The app and booking server may make that target impossible on some runs.
-
-## Sign-in recovery
-
-The helper reuses the signed-in app session. If Vinhomes displays its login
-screen, it can enter the account name and password from a local `.env` file.
-It never writes credentials to logs or to GitHub. The `.env` file is ignored by
-Git and restricted to the current Mac user when read. OTP and CAPTCHA screens
-stop the run for manual attention.
-
-1. Copy `.env.example` to `.env` in this folder.
-2. Open `.env` in a text editor and fill `VINHOMES_USERNAME` and
-   `VINHOMES_PASSWORD` with the resident account's login details.
-3. Save the file. Do not upload or send `.env`; send only `.env.example` when
-   sharing the project. If the daily scheduler is already installed, run
-   `python3 install_schedule.py` again to copy the updated credentials into its
-   private runtime folder.
-
-Automatic recovery depends on the current Vinhomes login screen exposing one
-username field, one password field, and a login/continue button to Android's
-accessibility service. If its screen differs, the helper stops without
-submitting a booking. Verify recovery during setup before relying on unattended
-booking. Do not share these credentials with your coding agent.
-
-## What this package is
-
-This is a Python helper script, not a new phone app. It uses Android Debug Bridge (adb), included with Android Studio, to open and operate a virtual Android phone. It uses only visible app controls; it does not call undocumented booking endpoints or bypass app protections. Python and the script use free, built-in tools.
-
-## Set it up on the Mac that will run it
-
-1. Install Android Studio from [Google's official Android Studio page](https://developer.android.com/studio). The Studio download and emulator image are large (several GB total) but free. The Android SDK license must be accepted during setup.
-2. In Android Studio, create one Android Virtual Device (AVD) with a Google Play system image. Start the virtual phone and complete its first-run setup.
-3. Open Google Play inside the emulator, install **Vinhomes Resident** by Vingroup, and sign in to the resident account manually. Set up `.env` as described above if you want automatic recovery after session expiry.
-4. With the emulator open and signed in on the app's home screen, first check that the session survives navigation to the tennis calendar:
-
-   ```sh
-   python3 booking.py --check-session
-   ```
-
-   This stops at the calendar without selecting a date or making a booking. Then run the no-submit walkthrough:
-
-   ```sh
-   python3 booking.py --dry-run
-   ```
-
-   This checks that the visible labels match the app and stops before the final booking confirmation. It still navigates to a court and selects a time, so run it when you are comfortable with that screen state.
-5. If the walkthrough reaches the intended date and slot, install the daily scheduler:
-
-   ```sh
-   python3 install_schedule.py
-   ```
-
-   To stop it later:
-
-   ```sh
-   python3 uninstall_schedule.py
-   ```
-
-To schedule one safe dry run for the next 06:00 opening without waking up to launch it:
+Then restrict access:
 
 ```sh
-python3 install_dry_run.py
+chmod 600 .env
 ```
 
-It preflights at 05:55, attempts the booking flow at 06:00, stops before final confirmation, logs its result, and removes its one-time schedule. Use `python3 uninstall_dry_run.py` to cancel it before it runs.
+Never upload `.env`, include it in a ZIP, print its values, or paste credentials
+into agent chat. `.env.example` contains empty placeholders and is safe to share.
+The scheduler installer copies `.env` to its private runtime folder with mode 600.
+Rerun the installer after changing credentials or updating the source code.
 
-## Daily operation
+### 4. Check without booking
 
-- The scheduler preflights at **05:55** and starts booking at **06:00 Asia/Ho_Chi_Minh**, regardless of the Mac's displayed timezone.
-- Keep the Mac logged in and connect it to power. The scheduler uses macOS `caffeinate` to prevent idle system sleep while it waits for 06:00; the display may sleep. Keep the Android emulator running.
-- It aims to book the date two days ahead, choose the first available court, try 20:00–21:00 then 19:00–20:00, accept the facility terms, and confirm.
-- Results are written under `~/Library/Application Support/VinhomesTennisBooking/logs/booking.log`. The log does not record account passwords or resident details.
-- The five-second goal is measured from app launch through screen navigation and submission. It is a target only; app startup, the network, server response, and screen-label differences can make it take longer or fail.
+With the app on Home:
 
-## Current limitations
+```sh
+python3 booking.py --check-session
+python3 booking.py --dry-run
+```
 
-The fast flow has been verified through review on both BE and BS routes and has
-completed one live free booking. Start it from Home, the amenities list, or the calendar;
-preflight returns the app to the amenities list. A changed calendar month/layout,
-expired session, unavailable courts, or ambiguous screen recognition stops the
-attempt rather than guessing. Automatic login only handles a clearly exposed
-username/password form; it has not yet been verified on an expired Vinhomes
-session. OTP/CAPTCHA challenges and uncertain booking submissions stop without
-retrying.
+The first stops at the calendar. The second selects a date/time/court, verifies
+the review, and stops **before Confirm**. Full slots can prevent the dry run from
+reaching review; that does not prove setup failure or success. Do not replace it
+with an unapproved live booking. A daytime dry run is also available:
+
+```sh
+python3 booking.py --dry-run --test-slot '11:00 - 12:00'
+```
+
+Allowed CLI test slots: 09:00–10:00, 10:00–11:00, 11:00–12:00, 14:00–15:00.
+Test slots cannot submit reservations. Inspect the final screen, since dry runs
+still change the app's navigation and selection.
+
+Local recovery tests (no emulator interaction):
+
+```sh
+python3 -m unittest discover -s tests -v
+```
+
+With the owner's agreement, sign out once and run `--check-session` to verify
+`.env` recovery, without making a booking. Do not clear app storage or reset the AVD.
+
+### 5. Turn on daily booking
+
+**This enables real daily bookings.** Once the owner authorizes that:
+
+```sh
+python3 install_schedule.py
+```
+
+The installer copies code and credentials into:
+`~/Library/Application Support/VinhomesTennisBooking`
+
+It registers `~/Library/LaunchAgents/local.vinhomes.tennis-booking.plist` and starts
+one daily watcher. It uses `caffeinate` to prevent idle system sleep.
+
+Check it:
+
+```sh
+launchctl print "gui/$(id -u)/local.vinhomes.tennis-booking"
+"$HOME/Library/Android/sdk/platform-tools/adb" devices
+tail -n 30 "$HOME/Library/Application Support/VinhomesTennisBooking/logs/booking.log"
+```
+
+Require a running scheduler and exactly one ready emulator. A running scheduler
+alone is **not enough**. It does not start/restart the emulator automatically.
+
+## Overnight checklist
+
+- Mac plugged in, lid open, user logged in; do not shut it down or log out.
+- Emulator open and connected; internet working.
+- Leave Vinhomes on Home or the amenities list; avoid interacting during booking.
+- Display sleep is fine. Closing the lid can suspend the Mac despite `caffeinate`.
+- Only one automation controls the emulator. Do not run manual tests, a second
+  watcher, or the optional scheduled dry run concurrently.
+
+## Recovery and timing
+
+At release, the script reads the **current** screen instead of trusting one taken
+before 06:00. If the session expires, it can dismiss a recognized expiry dialog,
+log in using `.env`, and rebuild navigation. It recognizes a saved-username login
+layout for faster entry; other forms use accessibility inspection. OTP/CAPTCHA
+or an ambiguous form require attention.
+
+If the app says registration is closed, the runner dismisses the notice and
+retries with a 0.5s pause during a 30s recovery window. After any Confirm attempt,
+there is **no automatic retry**. An uncertain result must be checked in booking
+history before considering another attempt.
+
+Timing logs include login recovery that happens after booking starts. Emulator
+boot and earlier preparation are separate. Actual forced-login tests varied;
+under-10-second booking including forced login has not been verified.
+
+## Results, stopping, and updates
+
+- Main log: `~/Library/Application Support/VinhomesTennisBooking/logs/booking.log`
+- Scheduler errors: same folder, `scheduler.err.log`.
+- `FAST BOOKING CONFIRMED` means the script detected success.
+- `Confirmation tapped ... success is unverified` means check app history;
+  **do not assume failure and submit again**.
+- The daily attempt date is recorded in `logs/last-run-date.txt` to prevent
+  duplicate attempts after restarts. Do not delete it to force a rerun.
+
+Stop daily booking:
+
+```sh
+python3 uninstall_schedule.py
+```
+
+This stops scheduling; it does not cancel existing court reservations. Runtime
+files, including private credentials, remain local.
+
+Update source with `git pull --ff-only`, then rerun `python3 install_schedule.py`
+so the runtime actually receives the update. Do not reinstall during 05:55–06:01
+or while a booking is in progress. Preserve `.env` and the attempt marker.
+
+Optional next-opening dry run: stop the daily scheduler first, then run
+`python3 install_dry_run.py`. Keep the Mac awake manually; this alternative does
+not use the daily watcher's sleep prevention or copy `.env` into a fresh runtime.
+Stop that one-time job using `python3 uninstall_dry_run.py` before re-enabling daily
+booking. Never run both jobs together.
+
+## Limits
+
+The code is tied to observed Vietnamese app screens. UI changes, calendar layouts,
+unavailable courts, account quotas, network delays, emulator exits, or session
+challenges can stop a run. The morning test succeeded despite failed preflight
+navigation; that preflight issue is not claimed fixed by this documentation update.
+No speed or booking-success percentage is guaranteed.
